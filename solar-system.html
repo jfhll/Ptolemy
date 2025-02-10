@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solar System Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        .label {
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            padding: 2px;
+            background: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        Time Scale: <input type="range" id="timeScale" min="0" max="100" value="50"><br>
+        Focus: <select id="focusSelect">
+            <option value="none">Free Camera</option>
+            <option value="sun">Sun</option>
+            <option value="mercury">Mercury</option>
+            <option value="venus">Venus</option>
+            <option value="earth">Earth</option>
+            <option value="mars">Mars</option>
+            <option value="jupiter">Jupiter</option>
+            <option value="saturn">Saturn</option>
+            <option value="uranus">Uranus</option>
+            <option value="neptune">Neptune</option>
+        </select>
+    </div>
+    <script>
+        // Initialize Three.js
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Planet data (distances and sizes are not to scale for better visualization)
+        const planetData = {
+            sun: { radius: 5, color: 0xffff00, orbitRadius: 0 },
+            mercury: { radius: 0.8, color: 0x888888, orbitRadius: 10, speed: 4.787 },
+            venus: { radius: 1.2, color: 0xffd700, orbitRadius: 15, speed: 3.502 },
+            earth: { radius: 1.5, color: 0x0077ff, orbitRadius: 20, speed: 2.978 },
+            mars: { radius: 1, color: 0xff4400, orbitRadius: 25, speed: 2.407 },
+            jupiter: { radius: 3, color: 0xffaa88, orbitRadius: 35, speed: 1.307 },
+            saturn: { radius: 2.5, color: 0xffcc99, orbitRadius: 45, speed: 0.969 },
+            uranus: { radius: 2, color: 0x99ffff, orbitRadius: 55, speed: 0.681 },
+            neptune: { radius: 2, color: 0x3333ff, orbitRadius: 65, speed: 0.543 }
+        };
+
+        // Create planets
+        const planets = {};
+        const orbits = {};
+        const labels = {};
+
+        // Create sun
+        const sunGeometry = new THREE.SphereGeometry(planetData.sun.radius, 32, 32);
+        const sunMaterial = new THREE.MeshBasicMaterial({ color: planetData.sun.color });
+        planets.sun = new THREE.Mesh(sunGeometry, sunMaterial);
+        scene.add(planets.sun);
+
+        // Create planets and their orbits
+        for (const [name, data] of Object.entries(planetData)) {
+            if (name === 'sun') continue;
+
+            // Create planet
+            const geometry = new THREE.SphereGeometry(data.radius, 32, 32);
+            const material = new THREE.MeshBasicMaterial({ color: data.color });
+            planets[name] = new THREE.Mesh(geometry, material);
+            scene.add(planets[name]);
+
+            // Create orbit
+            const orbitGeometry = new THREE.RingGeometry(data.orbitRadius - 0.1, data.orbitRadius + 0.1, 64);
+            const orbitMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                opacity: 0.2,
+                transparent: true
+            });
+            orbits[name] = new THREE.Mesh(orbitGeometry, orbitMaterial);
+            orbits[name].rotation.x = Math.PI / 2;
+            scene.add(orbits[name]);
+
+            // Create label
+            const div = document.createElement('div');
+            div.className = 'label';
+            div.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+            labels[name] = document.createElement('div');
+            labels[name].className = 'label';
+            labels[name].style.position = 'absolute';
+            labels[name].style.color = '#ffffff';
+            labels[name].textContent = name.charAt(0).toUpperCase() + name.slice(1);
+            document.body.appendChild(labels[name]);
+        }
+
+        // Camera position
+        camera.position.z = 100;
+        camera.position.y = 50;
+        camera.lookAt(0, 0, 0);
+
+        // Animation variables
+        let time = 0;
+        const timeScaleSlider = document.getElementById('timeScale');
+        const focusSelect = document.getElementById('focusSelect');
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update planet positions
+            const timeScale = timeScaleSlider.value / 50;
+            time += 0.01 * timeScale;
+
+            for (const [name, data] of Object.entries(planetData)) {
+                if (name === 'sun') continue;
+
+                // Update planet position
+                planets[name].position.x = Math.cos(time * data.speed) * data.orbitRadius;
+                planets[name].position.z = Math.sin(time * data.speed) * data.orbitRadius;
+
+                // Update label position
+                const vector = planets[name].position.clone();
+                vector.project(camera);
+                labels[name].style.left = (vector.x * 0.5 + 0.5) * window.innerWidth + 'px';
+                labels[name].style.top = (-vector.y * 0.5 + 0.5) * window.innerHeight + 'px';
+            }
+
+            // Update camera focus
+            const focus = focusSelect.value;
+            if (focus !== 'none') {
+                const target = planets[focus].position;
+                camera.lookAt(target);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
